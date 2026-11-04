@@ -1,0 +1,7 @@
+{
+  "evaluation_years": [2024, 2025],
+  "report_timezone": "Asia/Shanghai",
+  "bootstrap_block_windows": [10, 20, 40],
+  "bootstrap_repeats": 1000,
+  "seed": 42
+}

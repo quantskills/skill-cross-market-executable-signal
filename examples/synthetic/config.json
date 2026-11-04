@@ -1,0 +1,6 @@
+{
+  "train_end": "2024-02-15T23:59:00Z",
+  "fee_rate": 0.0001,
+  "slippage_rate": 0.0002,
+  "notional_scale": 0.25
+}
