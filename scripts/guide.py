@@ -57,19 +57,44 @@ def summary(out, report_path, demo):
     mode = "合成演示：不是市场行情或真实模型实验。" if demo else "用户提供的数据：程序没有自动证明它是真实数据、获得授权或具备历史时点证据；也可能包含合成数据。"
     lines = ["# 使用结果", "", mode, "", "## 本次结果", ""]
     if KIND == "prompt":
-        lines += ["候选是否通过放行条件：" + str(report["accepted"]).lower(),
-                  "建议版本：" + str(report["recommended_version"]),
+        lines += ["候选是否通过放行条件：" + ("通过" if report["accepted"] else "未通过"),
+                  "建议版本：" + (str(report["recommended_version"]) if report["recommended_version"] is not None else "暂无可放行版本"),
                   "评价任务数：" + str(report["n_tasks"]),
-                  "候选相对基线的通过率差：" + str(report["paired_task_pass_rate_delta"]),
+                  f"候选相对基线的通过率差：{report['paired_task_pass_rate_delta'] * 100:+.2f} 个百分点",
                   "保留集评价不会修改用户的本地或平台版本指针。"]
         if demo:
             lines += ["本演示沿用旧示例，只在本次新输出目录内演示本地指针恢复，不修改平台。"]
     else:
-        lines += ["报告状态：" + report["status"], "比较结果数量：" + str(len(report["metrics"])),
-                  "", "以下数值来自本次报告，未选择最佳结果冒充整体结论。", "",
-                  "```json", json.dumps(report["metrics"], ensure_ascii=False, indent=2), "```"]
+        statuses = {"synthetic_fixture_only": "仅供合成示例检查",
+                    "hypothesis_only": "包含时间假设，仅供研究",
+                    "local_analysis_only_platform_evidence_required": "本地分析，平台证据仍需核验",
+                    "local_analysis_only_quantstudio_run_required": "本地分析，QuantStudio 平台复验仍需完成"}
+        schemes = {"frozen_baseline": "固定参数基线", "unified": "统一参数",
+                   "cluster_shared": "分组共享参数", "per_symbol": "逐品种参数",
+                   "domestic_lag_baseline": "国内滞后基线（完整覆盖）",
+                   "domestic_lag_matched_baseline": "国内滞后基线（同覆盖）",
+                   "aligned": "时间对齐模型", "extra_session_lag": "额外滞后一窗口",
+                   "future_misalignment_placebo": "未来错位诊断（不可交易）"}
+        scopes = {"known_future": "已见品种未来段", "unseen_future": "未见品种未来段"}
+        lines += ["报告状态：" + statuses.get(report["status"], "未识别状态，请核对原始报告"),
+                  "比较结果数量：" + str(len(report["metrics"])), "",
+                  "下表按原报告顺序完整列出所有方案、范围和费用设置，不只展示最佳结果。收益和回撤保留两位小数，完整精度见原始报告。", "",
+                  "| 序号 | 范围 | 方案 | 费用倍数 | 样本数 | 覆盖率 | 累计收益 | 最大回撤 | 夏普 |",
+                  "|---|---|---|---|---|---|---|---|---|"]
+        for index, metric in enumerate(report["metrics"], 1):
+            scope = scopes.get(metric.get("scope"), "检验期")
+            scheme = schemes.get(metric["scheme"], "未识别方案（见原始报告）")
+            count = metric["days"] if KIND == "cta" else metric["windows"]
+            coverage = metric["coverage_min"] if KIND == "cta" else metric["coverage"]
+            sharpe = metric["sharpe"] if KIND == "cta" else metric["sharpe_per_252_windows"]
+            sharpe_text = "无法计算" if sharpe is None else f"{sharpe:.2f}"
+            lines.append(f"| {index} | {scope} | {scheme} | {metric['cost_multiplier']:g} 倍 | {count} | {coverage:.2%} | {metric['total_return']:.2%} | {metric['max_drawdown']:.2%} | {sharpe_text} |")
+        lines += ["", "费用倍数作用于冻结配置里的费用和滑点；最大回撤以负值表示从高点的跌幅。夏普衡量收益相对波动，不保证未来表现；无法计算不等于零。"]
+        if KIND == "cta":
+            lines += ["样本数为收益观测日，覆盖率为逐日品种覆盖率的最小值；夏普按 252 日缩放。未见品种的逐品种方案回退为统一参数，两者不是独立证据。"]
         if KIND == "cross":
-            lines += ["检验窗口匹配率：" + str(report["alignment_coverage"]["test"]),
+            lines += ["样本数为检验窗口；夏普按 252 个窗口缩放，不一定等于自然年。累计收益按配置的名义仓位比例计算，不是满仓或保证金杠杆收益。",
+                      f"检验窗口匹配率：{report['alignment_coverage']['test']:.2%}",
                       "所有方案均不构成已认证的可交易信号；工具不下单。"]
     lines += ["", "## 限制", "", "结果只适用于本次输入、冻结规则和样本；合成演示不证明真实效果。已经查看的保留样本不能继续冒充未见数据。",
               "统计比较不替代平台证据、历史发布时间核验或成交验证；不保证未来表现。",

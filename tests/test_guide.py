@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import runpy
 import subprocess
 import sys
 
@@ -61,9 +62,16 @@ def test_demo_real_route_and_collision(tmp_path):
     report = json.loads((output/"report.json").read_text(encoding="utf-8"))
     if KIND.startswith("prompt-"):
         assert report["split"] == "holdout"
-        assert str(report["accepted"]).lower() in note.lower()
+        assert ("候选是否通过放行条件：通过" if report["accepted"] else "候选是否通过放行条件：未通过") in note
+        assert f'{report["paired_task_pass_rate_delta"] * 100:+.2f} 个百分点' in note
     else:
-        assert report["status"] in note
+        assert "累计收益" in note and "最大回撤" in note and "夏普" in note
+        assert "```json" not in note
+        rows = [line for line in note.splitlines() if line.startswith("| ") and line.split("|")[1].strip().isdigit()]
+        assert len(rows) == len(report["metrics"])
+        for metric in report["metrics"]:
+            assert f'{metric["total_return"]:.2%}' in note
+            assert f'{metric["max_drawdown"]:.2%}' in note
     if KIND.startswith("cross-"):
         assert (demo/"summary"/"summary.json").is_file()
 
@@ -91,4 +99,25 @@ def test_menu_can_check_then_exit():
     result = run(stdin="1\n0\n")
     assert result.returncode == 0
     assert "Python" in result.stdout
+
+
+def test_summary_handles_unavailable_values_in_chinese(tmp_path):
+    report = {"accepted": False, "recommended_version": None, "n_tasks": 2,
+              "paired_task_pass_rate_delta": -0.125,
+              "status": "synthetic_fixture_only", "alignment_coverage": {"test": 0.5},
+              "metrics": [{"scope": "known_future", "scheme": "unified", "cost_multiplier": 2,
+                           "days": 10, "windows": 10, "coverage_min": 1, "coverage": 0.5,
+                           "total_return": -0.0125, "max_drawdown": -0.025,
+                           "sharpe": None, "sharpe_per_252_windows": None}]}
+    path = tmp_path/"report.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    runpy.run_path(str(ROOT/"scripts"/"guide.py"))["summary"](tmp_path, path, False)
+    note = (tmp_path/"使用结果.md").read_text(encoding="utf-8")
+    assert "None" not in note and "null" not in note and "false" not in note
+    if KIND.startswith("prompt-"):
+        assert "未通过" in note and "暂无可放行版本" in note
+        assert "-12.50 个百分点" in note
+    else:
+        assert "-1.25%" in note and "-2.50%" in note
+        assert "无法计算" in note
 
