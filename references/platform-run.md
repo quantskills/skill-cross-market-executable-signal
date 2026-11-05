@@ -1,5 +1,7 @@
 # QuantStudio 平台运行
 
+普通使用的统一入口见[入门说明](getting-started.md)；活动评分、审查模型和负责人确认单独见[可选评估](assessment.md)。这些步骤不会阻止离线示例或用户数据分析。
+
 本包按研究工具使用，正式评分和活动受理不作为启动条件。下面保留历史平台核验与范围变更记录，普通使用先按README运行离线示例，再准备自己的授权数据。
 
 官方源码 https://github.com/quantskills/QuantStudio 是产品发布地址，不是在线运行实例。先核实用户指定的实际 QuantStudio 地址和版本，再在该实例建立研究会话。
