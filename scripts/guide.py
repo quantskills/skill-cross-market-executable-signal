@@ -5,12 +5,11 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from scripts.input_check import INPUT_FILES, inspect_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 KIND = "cross"
-FILES = {"prompt": ("suite.json", "manifest.json", "versions.json", "runs.jsonl"),
-         "cta": ("outcomes.csv", "features.csv", "config.json"),
-         "cross": ("domestic.csv", "events.csv", "fx.csv", "config.json")}[KIND]
+FILES = INPUT_FILES
 
 class GuideError(Exception):
     pass
@@ -19,6 +18,12 @@ class GuideError(Exception):
 class SafeParser(argparse.ArgumentParser):
     def error(self, message):
         self.exit(2, "参数不正确：请运行 python start.py --help 查看用法。\n")
+
+def validate_inputs(source):
+    issues = inspect_inputs(source)
+    if issues:
+        raise GuideError("分析未完成：输入资料需要补齐。\n- " + "\n- ".join(issues)
+                         + "\n填写方法见 references/prepare-inputs.md。")
 
 def check():
     ready = sys.version_info >= (3, 11)
@@ -115,9 +120,7 @@ def execute(demo, input_dir, output):
     if not demo and source is None:
         raise GuideError("请用 --input-dir 指定输入文件夹。")
     if source is not None:
-        missing = [name for name in FILES if not (source/name).is_file()]
-        if missing:
-            raise GuideError("缺少必要输入文件：" + "、".join(missing) + "。请参照 references/getting-started.md。")
+        validate_inputs(source)
     if check():
         raise GuideError("依赖尚未就绪：请先按入门说明准备环境，再运行 --check。")
     if demo and KIND != "cross":
@@ -153,9 +156,10 @@ def menu():
             return 0
 
 def main(argv=None):
-    parser = SafeParser(description="环境检查、离线示例、用户数据分析；不联网、不登录、不安装。")
+    parser = SafeParser(description="环境检查、填表检查、离线示例、用户数据分析；不联网、不登录、不安装。")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="检查环境")
+    group.add_argument("--check-input", action="store_true", help="只检查输入文件、表头和必填项")
     group.add_argument("--demo", action="store_true", help="运行合成示例")
     group.add_argument("--run", action="store_true", help="分析用户提供的文件")
     parser.add_argument("--input-dir")
@@ -164,10 +168,18 @@ def main(argv=None):
     try:
         if args.check:
             return check()
+        if args.check_input:
+            if args.output:
+                raise GuideError("填表检查不需要 --output，不会生成报告。")
+            if not args.input_dir:
+                raise GuideError("请用 --input-dir 指定要检查的输入文件夹。")
+            validate_inputs(Path(args.input_dir).expanduser())
+            print("基础检查通过：文件、表头及必填项齐全，不代表数据来源、时间或样本覆盖已核实。")
+            return 0
         if args.demo or args.run:
             return execute(args.demo, args.input_dir, args.output)
         if args.input_dir or args.output:
-            raise GuideError("请同时选择 --demo 或 --run。")
+            raise GuideError("请同时选择 --demo、--run 或 --check-input。")
         return menu()
     except GuideError as exc:
         print(str(exc), file=sys.stderr)

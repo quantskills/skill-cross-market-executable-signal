@@ -1,0 +1,50 @@
+# 跨市场数据怎么填
+
+只想看工具怎么用，先运行首页的演示。准备研究自己的数据时，把 [`templates/input/`](../templates/input/) 整个目录复制一份，改名为 `我的输入`。[填好的演示](../examples/synthetic/)可以对照格式，其中的数字和时刻都是构造的。
+
+在 PowerShell 里也可以用下面这行复制。如果已有同名目录，换个新名字，免得混进旧资料。
+
+```powershell
+Copy-Item -LiteralPath 'templates/input' -Destination '我的输入' -Recurse
+```
+
+## 先找齐这几样
+
+| 文件 | 要准备什么 | 可以去哪里找 |
+| --- | --- | --- |
+| `domestic.csv` | 国内具体合约的日盘开盘价、收盘价、之前的收盘价及相应时刻，用来整理每次决策和持有区间 | 优先从有权限的 [PandaData](https://www.pandaaiquant.com/data-service) 导出 SC 具体合约数据；[上海国际能源交易中心日周数据](https://www.ine.cn/reports/tradedata/dailyandweeklydata/)可核对合约和行情。若日线开盘含夜盘，需另取日盘开盘记录，不能直接替代 |
+| `events.csv` | 同一外盘序列的价格变化，以及每条记录何时能拿到 | 现有 PandaData 回放用 `EN0002967` 结算价指标；缺逐日 CL 合约编号与换月证据。[EIA WTI 日频现货](https://www.eia.gov/dnav/pet/hist/RWTCD.htm)可另做现货对照。[EIA 期货表](https://www.eia.gov/dnav/pet/pet_pri_fut_s1_d.htm)只到 2024 年 4 月 5 日，不能补之后的合约数据 |
+| `fx.csv` | 每美元兑多少人民币的变动和可用时刻 | 平台导出的 `USD_CNY`，或单独使用 [FRED 的 DEXCHUS 日频值](https://fred.stlouisfed.org/series/DEXCHUS)，并到[美联储 H.10 发布档案](https://www.federalreserve.gov/releases/h10/)核对该来源的发布时间 |
+| `config.json` | 训练截止时间、单边手续费率、单边滑点率 | 研究开始前定好日期；费用参考有权使用的历史费率或账单，滑点写明依据或假设。模板里的三个 `null` 都要替换 |
+
+已经有 PandaData 导出的 SC、WTI 和汇率原始表时，可以用[现有转换步骤](platform-inputs.md)生成三张 CSV，再放入自己填好的配置。转换会把可用时刻标为假设。公开下载表不能直接改个文件名就用；先核对列、单位、合约和时区，再按下面的表头整理。
+
+如果研究一定要用 NYMEX 的逐月 CL 合约，可在 [CME DataMine](https://www.cmegroup.com/datamine.html) 查询有授权的历史结算数据。拿到后还要核对所需区间、合约标识、换月规则和实际发布或接收时间。跑演示或用已有数据做假设研究，无需购买这些资料。
+
+## 每列怎么填
+
+CSV 保留英文表头，存成 UTF-8 的逗号分隔文件。编号列在表格软件里设为文本，免得丢掉前导零。时间统一写成带偏移的格式，例如 `2024-02-16T08:55:00+08:00`。收益和费率填小数，例如 1% 写 `0.01`。三个 CSV 的表头所列字段均为必填。
+
+| 列 | 怎么填 |
+| --- | --- |
+| `window_id`、`event_id`、`fx_id` | 分别给国内窗口、外盘记录和汇率记录编号，同一张表内不能重复 |
+| `decision_at`、`entry_at`、`exit_at` | 国内作决定、进场、退出的时刻，按顺序填写；窗口不能重叠 |
+| `asset_return` | 同一具体合约退出价除以进场价再减 1，未扣费。不要跨合约算 |
+| `local_lag_return`、`local_lag_available_at` | 决策前已经能看到的国内收益及其可用时刻。可用时刻不能晚于决策 |
+| `external_return`、`fx_return` | 同一外盘序列、同方向汇率序列各自的变动值。外盘指标的算法要先固定；WTI 有负价历史，可参考现有转换口径 |
+| `available_at` | 外盘或汇率的这条观测最早何时可用于决策。不要把价格对应的观测日当成发布日期 |
+| `available_at_basis` | 三张表都要填。供应商存档用 `vendor_archive`，交易所存档用 `exchange_archive`，明确采用时间假设时填 `assumed`，构造数据用 `synthetic`。只有能核对到该条记录的时点证据才可按存档填写 |
+
+配置中的 `train_end` 填带时区的时间。其余两个必填项 `fee_rate` 和 `slippage_rate` 填非负小数，都是单边口径。还可以填写训练开始 `train_start`、检验结束 `test_end`、信息最长可用时间 `max_age_hours`、模型参数 `ridge` 和仓位比例 `notional_scale`。可选项的默认值和边界见[数据协议](data-contract.md)，不要根据检验期结果反过来挑设置。
+
+## 先查缺项，再跑研究
+
+在项目目录运行下面这行，不用先装第三方依赖，也不需要指定输出目录。
+
+```powershell
+python start.py --check-input --input-dir "我的输入"
+```
+
+检查会指出缺文件、缺列、空表、必填空格或未填的配置。每个表先报第一处数据行问题，改完可以再查一次。它不认证数据来源、不判断覆盖够不够，也不产生收益。格式齐全后再按首页运行分析；真正能用的样本仍要满足每个方案至少 20 个训练窗口、国内检验至少 10 个窗口。外盘或汇率匹配不足时，训练可能不足；在可完成的检验中，缺口按原规则处理并保留在覆盖率里。
+
+只有价格日期、没有发布时间时，把来源和能解释的延迟写在备忘里，按 `assumed` 做假设研究；连合理的延迟依据也没有，就先跑演示，别编时间。缺行情、缺汇率或缺日盘开盘价时去补原始记录，不能用零、随便找的一列或另一来源的发布时间代替。需要证明历史可成交时，还要另找当期合约、换月、保证金、涨跌停和容量等证据；填完模板不能替代这些核对。

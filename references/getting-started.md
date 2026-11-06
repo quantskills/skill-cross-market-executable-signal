@@ -30,6 +30,8 @@ macOS / Linux 将下文的 `.venv\Scripts\python` 换成 `.venv/bin/python`。�
 
 ## 3. 用自己的数据
 
+先复制[空白模板](../templates/input/)，按[填表说明](prepare-inputs.md)找资料、填列。正式分析前可用 `python start.py --check-input --input-dir "我的输入"` 检查缺项，不需要先装依赖，也不生成报告。
+
 把以下文件放进一个文件夹，字段和内容按[数据协议](data-contract.md)准备；不能只是改文件名。
 
 | 文件 | 内容 |

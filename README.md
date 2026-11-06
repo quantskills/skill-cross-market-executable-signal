@@ -24,14 +24,14 @@ python -m venv .venv
 
 ## 换成自己的行情
 
-| 文件 | 放什么 |
-| --- | --- |
-| `domestic.csv` | 国内行情和各次决策的时间 |
-| `events.csv` | 外盘数据及其发布时间或实际可用时间的依据 |
-| `fx.csv` | 汇率数据及其可用时间 |
-| `config.json` | 选规则和做检验的日期，以及费用和仓位设置 |
+1. 复制 [`templates/input/`](templates/input/) 到 `我的输入`，保留表头，填入国内行情、外盘、汇率和研究设置。[填表说明](references/prepare-inputs.md)逐列解释怎么填、数据到哪里找；也可以打开[填好的演示](examples/synthetic/)对照。
+2. 先检查缺项。少了哪份文件、哪一列，或哪行必填值为空，终端会直接指出。这一步不需要装第三方依赖，也不会生成报告。
 
-把四份文件放在同一个目录，用中文菜单选 `3`，也可以直接运行下面这行。只有行情日期、查不到历史发布时间的资料，适合按明确的延迟假设做研究，不能用来证明当时一定看得见或能成交。
+```powershell
+python start.py --check-input --input-dir "我的输入"
+```
+
+3. 补齐后，用中文菜单选 `3`，或运行下面这行。缺少历史发布时间时，只能在写明延迟假设后做研究，不把行情日期当成可用时间。
 
 ```powershell
 .venv\Scripts\python start.py --run --input-dir "我的输入" --output "outputs/我的结果"
@@ -39,6 +39,6 @@ python -m venv .venv
 
 ## 文件放在哪
 
-日常从 [`start.py`](start.py) 进。想照着填表，可以直接打开 [`examples/synthetic/`](examples/synthetic/) 里的示例文件。手头已有平台数据时，先看[怎么转换](references/platform-inputs.md)和[输入字段说明](references/data-contract.md)。
+日常从 [`start.py`](start.py) 进。手头已有平台导出数据时，先看[怎么转换](references/platform-inputs.md)。需要核对时间和费用的精确口径时，翻[数据协议](references/data-contract.md)。
 
 [详细入门](references/getting-started.md) · [实际研究记录](references/validation-20261104.md) · [来源核对](references/evidence-status-20261105.md) · [软件复验记录](references/validation-20261105.md)

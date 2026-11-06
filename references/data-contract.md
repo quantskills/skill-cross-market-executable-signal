@@ -1,5 +1,7 @@
 # 时间与数据协议
 
+第一次准备输入可从[空白模板和填表说明](prepare-inputs.md)开始。
+
 外盘 `events.csv` 包含 `event_id,available_at,external_return`。`available_at` 是平台实际能使用该观测的时间，包括收盘、发布和供应商延迟，必须带时区。汇率 `fx.csv` 同样包含 `fx_id,available_at,fx_return`。
 
 event_id、fx_id 和 window_id 必须非空且各表内唯一，按文本读取和保留。长整数、前导零和文字“NA”都是标识，不作数字运算。直接调用 Python 函数时也应从原始标识构建文本或整数列，不能先转浮点数后再转回；已经丢掉的精度无法恢复。用表格软件查看信号文件时，把编号列设为文本。
@@ -30,7 +32,7 @@ event_id、fx_id 和 window_id 必须非空且各表内唯一，按文本读取�
 {"train_start":"2019-01-01T00:00:00+08:00","train_end":"2022-12-31T23:59:59+08:00","test_end":"2025-12-31T23:59:59+08:00","max_age_hours":96,"ridge":1.0,"notional_scale":0.25,"fee_rate":0.0001,"slippage_rate":0.0002}
 ```
 
-这是配置示例，不是新来源已经核验或正式冻结的证明。train_end 必填；train_start、test_end 可选，提供时须为带时区时刻，满足 train_start < train_end < test_end。训练窗口要求决策不早于起点、退出不晚于截止；测试窗口要求决策晚于截止、退出不晚于终点。跨界窗口剔除，完整范围外窗口另计。全表基础数据先验检查仍会拒绝无效国内标签，不根据这些标签的好坏筛日期。
+这是配置示例，不是新来源已经核验或正式冻结的证明。train_end、fee_rate、slippage_rate 必填；train_start、test_end 可选，提供时须为带时区时刻，满足 train_start < train_end < test_end。训练窗口要求决策不早于起点、退出不晚于截止；测试窗口要求决策晚于截止、退出不晚于终点。跨界窗口剔除，完整范围外窗口另计。全表基础数据先验检查仍会拒绝无效国内标签，不根据这些标签的好坏筛日期。
 
 ridge 为有限非负值，默认 1。notional_scale 为 (0,1] 内有限数，省略时为兼容旧输入使用 1；研究应明确填写，不根据保留结果更改。仓位 = notional_scale × clip(预测收益/训练标签波动, −1, 1)，波动尺度下限为 1e-6。未匹配窗口仓位为零。费用是每单位实际方向仓位的单边收益率，基础成本分别为 2×abs(position)×fee_rate 和 2×abs(position)×slippage_rate；不把资产收益和费用重复缩放。
 
