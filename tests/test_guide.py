@@ -8,7 +8,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-KIND = ROOT.name
+# Extracted delivery folders can have arbitrary names.
+KIND = "cross-market-executable-signal"
 
 def run(*args, stdin=""):
     return subprocess.run([sys.executable, "-X", "utf8", str(ROOT/"start.py"), *map(str,args)],
