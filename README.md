@@ -1,10 +1,12 @@
 # 跨市场时间对齐研究
 
-外盘先动，国内开盘时这条信息究竟已经可用，还是回看数据才知道？这个 Skill 按数据声明的可用时间，把外盘事件、汇率和国内决策窗口匹配起来。你可以在相同覆盖和费用下，比较加入外盘信息前后的研究结果，并追查每个窗口实际用了哪条信息。
+纽约原油昨晚涨了，研究上海原油时，能不能把这条信息用在今天的决策里？得先知道那份数据什么时候发布、什么时候能拿到。事后下载的历史表能看到完整价格，但如果当时还没公布，就不能把它算进那次决策。
 
-## 快速上手
+这个工具把外盘信息、汇率和国内每次决策的时间对起来，比较只看国内行情和加上外盘信息的差别。每次决策用到了哪条信息，报告里都可以回查。它用来做历史研究，不连交易账户，也不下单。
 
-在代码目录打开 PowerShell。需要 Python 3.11 或更新版本。首次安装依赖通常需要联网，示例运行不需要账号或密钥。
+## 第一次用，先跑一个示例
+
+在 GitHub 点 **Code → Download ZIP**，解压后在能看到 `start.py` 的文件夹里打开 PowerShell。准备好 Python 3.11 或更新版本，然后依次运行下面三行。安装依赖通常需要联网，跑示例不用账号或密钥。
 
 ```powershell
 python -m venv .venv
@@ -12,22 +14,31 @@ python -m venv .venv
 .venv\Scripts\python start.py --demo --output outputs/first-demo
 ```
 
-macOS 或 Linux 用 `.venv/bin/python` 替换命令中的 Python 路径。再次运行时换一个新的输出目录。
+用 macOS 或 Linux 时，把 `.venv\Scripts\python` 换成 `.venv/bin/python`。也可以运行 `.venv\Scripts\python start.py` 打开中文菜单，选 `2` 跑示例。重复运行时换一个新的输出目录。
 
-## 例子 · 外盘信息晚一个窗口还有用吗？
+## 晚一次决策才收到消息，还有用吗？
 
-打开 `outputs/first-demo/使用结果.md`。在同一费用档，先确认「时间对齐模型」与「国内滞后基线（同覆盖）」的样本范围，再比扣费收益。合成示例在一倍费用下分别是 1.07% 和 0.27%。再看「额外滞后一窗口」一行，就能检查这个差距是否依赖信息到得够早。这些数字只用于练习读报告。
+1. 打开 `outputs/first-demo/使用结果.md`。在 `1 倍` 费用下，「时间对齐模型」加入了外盘信息，累计收益是 1.07%；「国内滞后基线（同覆盖）」只用国内数据、看的是同一批决策时段，累计收益是 0.27%。
+2. 再看同费用的「额外滞后一窗口」。它假设消息晚一次决策才到，累计收益变成 0.27%，示例里的差距消失了。这些是构造数据，用来练习判断结果有多依赖消息到达的时间。
+3. 想追查某次决策，打开 `signals.csv`。用 `decision_at` 找到那次决策，`used_event_id` 告诉你用的是哪条消息，`used_external_available_at` 记录那条消息何时可用。时间如果只是估算的，先写明假设，再尝试加长延迟，看结论会不会变。
 
-如果某个窗口贡献异常，去 `signals.csv` 对照决策时间 `decision_at`、实际使用的外盘信息编号 `used_event_id` 和它的可用时间 `used_external_available_at`。先查明时间来源再解释差异。报告用于研究，不生成委托。
+## 换成自己的行情
 
-## 换成自己的数据
+| 文件 | 放什么 |
+| --- | --- |
+| `domestic.csv` | 国内行情和各次决策的时间 |
+| `events.csv` | 外盘数据及其发布时间或实际可用时间的依据 |
+| `fx.csv` | 汇率数据及其可用时间 |
+| `config.json` | 选规则和做检验的日期，以及费用和仓位设置 |
 
-准备国内行情 `domestic.csv`、外盘事件 `events.csv`、汇率 `fx.csv` 和研究配置 `config.json`。按[三步入门](references/getting-started.md)准备可用时间、费用和仓位字段。
+把四份文件放在同一个目录，用中文菜单选 `3`，也可以直接运行下面这行。只有行情日期、查不到历史发布时间的资料，适合按明确的延迟假设做研究，不能用来证明当时一定看得见或能成交。
 
 ```powershell
 .venv\Scripts\python start.py --run --input-dir "我的输入" --output "outputs/我的结果"
 ```
 
-## 参考资料
+## 文件放在哪
 
-[平台数据转换](references/platform-inputs.md) · [实际研究记录](references/validation-20261104.md) · [来源核对](references/evidence-status-20261105.md) · [软件复验记录](references/validation-20261105.md)
+日常从 [`start.py`](start.py) 进。想照着填表，可以直接打开 [`examples/synthetic/`](examples/synthetic/) 里的示例文件。手头已有平台数据时，先看[怎么转换](references/platform-inputs.md)和[输入字段说明](references/data-contract.md)。
+
+[详细入门](references/getting-started.md) · [实际研究记录](references/validation-20261104.md) · [来源核对](references/evidence-status-20261105.md) · [软件复验记录](references/validation-20261105.md)
