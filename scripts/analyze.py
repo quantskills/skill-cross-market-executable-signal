@@ -124,12 +124,34 @@ def performance(returns: np.ndarray) -> dict:
     return metrics
 
 
-def analyze(domestic: pd.DataFrame, events: pd.DataFrame, fx: pd.DataFrame, cfg: dict) -> tuple[dict, pd.DataFrame]:
+def study_bounds(cfg: dict):
     cutoff = scope_timestamp(cfg["train_end"], "训练截止时间")
     start = scope_timestamp(cfg["train_start"], "训练开始时间") if "train_start" in cfg else None
     end = scope_timestamp(cfg["test_end"], "测试结束时间") if "test_end" in cfg else None
     if (start is not None and start >= cutoff) or (end is not None and cutoff >= end):
         raise ValueError("范围必须满足训练开始 < 训练截止 < 测试结束")
+    return start, cutoff, end
+
+
+def window_masks(d: pd.DataFrame, start, cutoff, end):
+    train_mask, test_mask = d.exit_at <= cutoff, d.decision_at > cutoff
+    outside = pd.Series(False,index=d.index)
+    crossing = (d.decision_at <= cutoff) & (d.exit_at > cutoff)
+    if start is not None:
+        train_mask &= d.decision_at >= start
+        outside |= d.exit_at <= start
+        crossing |= (d.decision_at < start) & (d.exit_at > start)
+    if end is not None:
+        test_mask &= d.exit_at <= end
+        outside |= d.decision_at > end
+        crossing |= (d.decision_at <= end) & (d.exit_at > end)
+    # Wholly out-of-scope rows are not boundary-crossing windows.
+    crossing &= ~outside
+    return train_mask, test_mask, crossing, outside
+
+
+def analyze(domestic: pd.DataFrame, events: pd.DataFrame, fx: pd.DataFrame, cfg: dict) -> tuple[dict, pd.DataFrame]:
+    start, cutoff, end = study_bounds(cfg)
     fee, slippage = float(cfg["fee_rate"]), float(cfg["slippage_rate"])
     ridge, scale = float(cfg.get("ridge",1)), float(cfg.get("notional_scale",1))
     if not np.isfinite([fee,slippage]).all() or min(fee,slippage) < 0:
@@ -145,19 +167,7 @@ def analyze(domestic: pd.DataFrame, events: pd.DataFrame, fx: pd.DataFrame, cfg:
     assumptions = "assumed" in bases
     synthetic = "synthetic" in bases
     status = "hypothesis_only" if assumptions else "synthetic_fixture_only" if synthetic else "local_analysis_only_quantstudio_run_required"
-    train_mask, test_mask = d.exit_at <= cutoff, d.decision_at > cutoff
-    outside = pd.Series(False,index=d.index)
-    crossing = (d.decision_at <= cutoff) & (d.exit_at > cutoff)
-    if start is not None:
-        train_mask &= d.decision_at >= start
-        outside |= d.exit_at <= start
-        crossing |= (d.decision_at < start) & (d.exit_at > start)
-    if end is not None:
-        test_mask &= d.exit_at <= end
-        outside |= d.decision_at > end
-        crossing |= (d.decision_at <= end) & (d.exit_at > end)
-    # Wholly out-of-scope rows are not boundary-crossing windows.
-    crossing &= ~outside
+    train_mask, test_mask, crossing, outside = window_masks(d, start, cutoff, end)
     if test_mask.sum() < 10:
         raise ValueError("保留测试窗口不足 10 个")
     source_cols = ["event_id","external_available_at","fx_id","fx_available_at","external_return","fx_return"]
@@ -262,6 +272,15 @@ def analyze(domestic: pd.DataFrame, events: pd.DataFrame, fx: pd.DataFrame, cfg:
     return result, pd.concat(details, ignore_index=True)
 
 
+def read_market_tables(domestic_path, events_path, fx_path):
+    # Identifiers are text at the input boundary, including leading zeros and NA.
+    return (
+        pd.read_csv(domestic_path, dtype={"window_id": "string"}, keep_default_na=False),
+        pd.read_csv(events_path, dtype={"event_id": "string"}, keep_default_na=False),
+        pd.read_csv(fx_path, dtype={"fx_id": "string"}, keep_default_na=False),
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="跨市场信息时间对齐与可执行信号检验")
     for name in ("domestic", "events", "fx", "config", "output"):
@@ -273,11 +292,7 @@ def main() -> None:
     cfg = json.loads(Path(a.config).read_text(encoding="utf-8"))
     if min(float(cfg["fee_rate"]), float(cfg["slippage_rate"])) < 0:
         raise ValueError("费用不能为负")
-    # Identifiers are text at the input boundary; e.g. "000046" and "NA" are
-    # legitimate IDs, while blank/malformed return fields still fail validation.
-    domestic = pd.read_csv(a.domestic,dtype={"window_id":"string"},keep_default_na=False)
-    events = pd.read_csv(a.events,dtype={"event_id":"string"},keep_default_na=False)
-    fx = pd.read_csv(a.fx,dtype={"fx_id":"string"},keep_default_na=False)
+    domestic, events, fx = read_market_tables(a.domestic, a.events, a.fx)
     result, details = analyze(domestic,events,fx,cfg)
     result["input_hashes"] = {n: hashlib.sha256(Path(getattr(a, n)).read_bytes()).hexdigest() for n in ("domestic", "events", "fx", "config")}
     report_json = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)

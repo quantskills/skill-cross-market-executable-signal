@@ -110,7 +110,7 @@ def summary(out, report_path, demo):
             lines.append("- [" + rel + "](" + rel.replace(" ", "%20") + ")")
     (out/"使用结果.md").write_text("\n".join(lines)+"\n", encoding="utf-8")
 
-def execute(demo, input_dir, output):
+def execute(demo, input_dir, output, preview=False):
     if not output:
         raise GuideError("请用 --output 指定一个新的输出目录。")
     out = Path(output).expanduser().resolve()
@@ -123,6 +123,10 @@ def execute(demo, input_dir, output):
         validate_inputs(source)
     if check():
         raise GuideError("依赖尚未就绪：请先按入门说明准备环境，再运行 --check。")
+    if preview:
+        invoke("coverage_preview.py", ["--input-dir", source, "--output", out])
+        print("预览已完成。请打开：" + str(out/"覆盖预览.md"))
+        return 0
     if demo and KIND != "cross":
         invoke("demo.py", ["--output", out])
         report = out/("evaluation" if KIND == "prompt" else "analysis")/"report.json"
@@ -138,28 +142,29 @@ def execute(demo, input_dir, output):
 
 def menu():
     while True:
-        print("\n1 环境检查\n2 运行合成示例\n3 使用自己的数据文件夹\n0 退出")
+        print("\n1 环境检查\n2 运行合成示例\n3 使用自己的数据文件夹\n4 预览数据覆盖\n0 退出")
         try:
             choice = input("请选择：").strip()
             if choice in ("0", "q", "exit"):
                 return 0
             if choice == "1":
                 check()
-            elif choice in ("2", "3"):
-                source = input("输入文件夹：").strip().strip('"') if choice == "3" else None
+            elif choice in ("2", "3", "4"):
+                source = input("输入文件夹：").strip().strip('"') if choice in ("3", "4") else None
                 output = input("新的输出文件夹：").strip().strip('"')
-                execute(choice == "2", source, output)
+                execute(choice == "2", source, output, preview=choice == "4")
             else:
-                print("请输入 0、1、2 或 3。")
+                print("请输入 0、1、2、3 或 4。")
         except EOFError:
             print("\n已退出。")
             return 0
 
 def main(argv=None):
-    parser = SafeParser(description="环境检查、填表检查、离线示例、用户数据分析；不联网、不登录、不安装。")
+    parser = SafeParser(description="环境检查、填表检查、覆盖预览、离线示例、用户数据分析；不联网、不登录、不安装。")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="检查环境")
     group.add_argument("--check-input", action="store_true", help="只检查输入文件、表头和必填项")
+    group.add_argument("--preview-coverage", action="store_true", help="只检查决策时外盘和汇率的匹配覆盖，不算收益")
     group.add_argument("--demo", action="store_true", help="运行合成示例")
     group.add_argument("--run", action="store_true", help="分析用户提供的文件")
     parser.add_argument("--input-dir")
@@ -176,10 +181,10 @@ def main(argv=None):
             validate_inputs(Path(args.input_dir).expanduser())
             print("基础检查通过：文件、表头及必填项齐全，不代表数据来源、时间或样本覆盖已核实。")
             return 0
-        if args.demo or args.run:
-            return execute(args.demo, args.input_dir, args.output)
+        if args.demo or args.run or args.preview_coverage:
+            return execute(args.demo, args.input_dir, args.output, preview=args.preview_coverage)
         if args.input_dir or args.output:
-            raise GuideError("请同时选择 --demo、--run 或 --check-input。")
+            raise GuideError("请同时选择 --demo、--run、--check-input 或 --preview-coverage。")
         return menu()
     except GuideError as exc:
         print(str(exc), file=sys.stderr)

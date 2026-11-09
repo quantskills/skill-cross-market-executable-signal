@@ -31,7 +31,13 @@ python -m venv .venv
 python start.py --check-input --input-dir "我的输入"
 ```
 
-3. 补齐后，用中文菜单选 `3`，或运行下面这行。缺少历史发布时间时，只能在写明延迟假设后做研究，不把行情日期当成可用时间。
+3. 补齐后，先用中文菜单选 `4`，或运行下面这行预览覆盖。打开 `覆盖预览.md` 看训练期和检验期各有多少决策能同时匹配外盘与汇率。用 `覆盖缺口.csv` 查具体日期和缺哪一项。
+
+```powershell
+.venv\Scripts\python start.py --preview-coverage --input-dir "我的输入" --output "outputs/覆盖预览"
+```
+
+4. 确认覆盖后，用中文菜单选 `3`，或另选一个输出目录运行正式分析。缺少历史发布时间时，只能在写明延迟假设后做研究，不把行情日期当成可用时间。
 
 ```powershell
 .venv\Scripts\python start.py --run --input-dir "我的输入" --output "outputs/我的结果"

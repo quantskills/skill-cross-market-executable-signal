@@ -32,6 +32,8 @@ macOS / Linux 将下文的 `.venv\Scripts\python` 换成 `.venv/bin/python`。�
 
 先复制[空白模板](../templates/input/)，按[填表说明](prepare-inputs.md)找资料、填列。正式分析前可用 `python start.py --check-input --input-dir "我的输入"` 检查缺项，不需要先装依赖，也不生成报告。
 
+填齐后，建议先用菜单第 `4` 项做[覆盖预览](prepare-inputs.md#正式分析前先看覆盖)，看有多少决策能同时匹配外盘和汇率。预览会把缺口列成表，不计算收益。
+
 把以下文件放进一个文件夹，字段和内容按[数据协议](data-contract.md)准备；不能只是改文件名。
 
 | 文件 | 内容 |
